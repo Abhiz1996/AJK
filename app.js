@@ -1,3 +1,5 @@
+document.documentElement.classList.add('has-motion');
+
 const openButton = document.getElementById('openInvitation');
 const invitation = document.getElementById('invitation');
 const reveal = document.getElementById('reveal');
@@ -82,3 +84,52 @@ ritualTabs.forEach((tab, index) => {
 
 ritualPrevious.addEventListener('click', () => selectRitual(activeRitual - 1));
 ritualNext.addEventListener('click', () => selectRitual(activeRitual + 1));
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const motionTargets = [
+  ...document.querySelectorAll('.countdown-heading, .countdown-grid, .countdown-bar, .ceremony-section .section-heading, .ritual-explorer, .venue-photo, .venue-copy, .details-section .section-heading, .detail-grid article, .closing-card')
+];
+
+motionTargets.forEach((target, index) => {
+  target.classList.add('motion-reveal');
+  target.style.setProperty('--reveal-delay', `${Math.min(index % 4, 3) * 0.08}s`);
+});
+
+if ('IntersectionObserver' in window && !reducedMotion) {
+  const motionObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-visible');
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: 0.16, rootMargin: '0px 0px -6% 0px' });
+
+  motionTargets.forEach((target) => motionObserver.observe(target));
+} else {
+  motionTargets.forEach((target) => target.classList.add('is-visible'));
+}
+
+if (!reducedMotion) {
+  const parallaxImages = [...document.querySelectorAll('.hero-photo img, .venue-photo img, .closing-section > img')];
+  let parallaxFrame = 0;
+
+  function updateParallax() {
+    parallaxFrame = 0;
+    const viewportCenter = window.innerHeight / 2;
+    parallaxImages.forEach((image) => {
+      const bounds = image.parentElement.getBoundingClientRect();
+      const sectionCenter = bounds.top + bounds.height / 2;
+      const offset = Math.max(-22, Math.min(22, (viewportCenter - sectionCenter) * 0.035));
+      image.style.setProperty('--parallax-y', `${offset}px`);
+    });
+  }
+
+  function requestParallax() {
+    if (parallaxFrame) return;
+    parallaxFrame = window.requestAnimationFrame(updateParallax);
+  }
+
+  window.addEventListener('scroll', requestParallax, { passive: true });
+  window.addEventListener('resize', requestParallax);
+  requestParallax();
+}
