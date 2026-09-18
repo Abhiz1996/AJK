@@ -3,8 +3,115 @@ document.documentElement.classList.add('has-motion');
 const openButton = document.getElementById('openInvitation');
 const invitation = document.getElementById('invitation');
 const reveal = document.getElementById('reveal');
+const musicToggle = document.getElementById('musicToggle');
+const musicLabel = musicToggle.querySelector('[data-music-label]');
+
+let audioContext;
+let musicMaster;
+let musicScheduler;
+let nextMusicCycle = 0;
+let musicPlaying = false;
+
+const musicNotes = [
+  392, 440, 523.25, 659.25, 587.33, 523.25, 440, 392,
+  349.23, 392, 440, 523.25, 493.88, 440, 392, 329.63
+];
+const musicChords = [
+  [130.81, 196, 261.63],
+  [110, 164.81, 220],
+  [87.31, 130.81, 174.61],
+  [98, 146.83, 196]
+];
+const musicCycleLength = 12;
+
+function setMusicState(playing) {
+  musicPlaying = playing;
+  musicToggle.setAttribute('aria-pressed', String(playing));
+  musicToggle.setAttribute('aria-label', playing ? 'Pause background music' : 'Play background music');
+  musicLabel.textContent = playing ? 'Music on' : 'Music';
+}
+
+function createTone(frequency, start, duration, volume, type = 'sine') {
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const filter = audioContext.createBiquadFilter();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(type === 'triangle' ? 1650 : 900, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + Math.min(.28, duration * .22));
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(filter).connect(gain).connect(musicMaster);
+  oscillator.start(start);
+  oscillator.stop(start + duration + .05);
+}
+
+function scheduleMusicCycle(start) {
+  musicChords.forEach((chord, chordIndex) => {
+    chord.forEach((frequency, voiceIndex) => {
+      createTone(frequency, start + chordIndex * 3, 3.8, voiceIndex === 0 ? .08 : .035, 'sine');
+    });
+  });
+
+  musicNotes.forEach((frequency, noteIndex) => {
+    const noteStart = start + noteIndex * .75;
+    createTone(frequency, noteStart, 1.15, noteIndex % 4 === 0 ? .11 : .072, 'triangle');
+    if (noteIndex % 4 === 0) createTone(frequency * 2, noteStart + .03, .85, .018, 'sine');
+  });
+}
+
+function fillMusicQueue() {
+  if (!audioContext) return;
+  while (nextMusicCycle < audioContext.currentTime + 5) {
+    scheduleMusicCycle(nextMusicCycle);
+    nextMusicCycle += musicCycleLength;
+  }
+}
+
+function createMusicEngine() {
+  const AudioEngine = window.AudioContext || window.webkitAudioContext;
+  if (!AudioEngine) return false;
+  audioContext = new AudioEngine();
+  musicMaster = audioContext.createGain();
+  const ambience = audioContext.createDelay(2);
+  const ambienceGain = audioContext.createGain();
+  ambience.delayTime.value = .34;
+  ambienceGain.gain.value = .12;
+  musicMaster.gain.value = 0.0001;
+  musicMaster.connect(audioContext.destination);
+  musicMaster.connect(ambience).connect(ambienceGain).connect(audioContext.destination);
+  nextMusicCycle = audioContext.currentTime + .08;
+  fillMusicQueue();
+  musicScheduler = window.setInterval(fillMusicQueue, 2500);
+  return true;
+}
+
+async function startWeddingMusic() {
+  if (!audioContext && !createMusicEngine()) {
+    musicToggle.hidden = true;
+    return;
+  }
+  await audioContext.resume();
+  const now = audioContext.currentTime;
+  musicMaster.gain.cancelScheduledValues(now);
+  musicMaster.gain.setValueAtTime(Math.max(musicMaster.gain.value, .0001), now);
+  musicMaster.gain.exponentialRampToValueAtTime(.055, now + 1.2);
+  setMusicState(true);
+}
+
+function pauseWeddingMusic() {
+  if (!audioContext) return;
+  const now = audioContext.currentTime;
+  musicMaster.gain.cancelScheduledValues(now);
+  musicMaster.gain.setValueAtTime(Math.max(musicMaster.gain.value, .0001), now);
+  musicMaster.gain.exponentialRampToValueAtTime(.0001, now + .45);
+  window.setTimeout(() => audioContext.suspend(), 500);
+  setMusicState(false);
+}
 
 function openInvitation() {
+  startWeddingMusic();
   document.body.classList.add('opening');
   window.setTimeout(() => {
     document.body.classList.add('opened');
@@ -15,6 +122,10 @@ function openInvitation() {
 }
 
 openButton.addEventListener('click', openInvitation);
+musicToggle.addEventListener('click', () => {
+  if (musicPlaying) pauseWeddingMusic();
+  else startWeddingMusic();
+});
 
 const weddingDate = new Date('2026-10-25T11:15:00+05:30');
 const countdownParts = {
