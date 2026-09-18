@@ -76,11 +76,17 @@ function createMusicEngine() {
   musicMaster = audioContext.createGain();
   const ambience = audioContext.createDelay(2);
   const ambienceGain = audioContext.createGain();
+  const limiter = audioContext.createDynamicsCompressor();
   ambience.delayTime.value = .34;
-  ambienceGain.gain.value = .12;
+  ambienceGain.gain.value = .16;
+  limiter.threshold.value = -18;
+  limiter.knee.value = 18;
+  limiter.ratio.value = 5;
+  limiter.attack.value = .01;
+  limiter.release.value = .3;
   musicMaster.gain.value = 0.0001;
-  musicMaster.connect(audioContext.destination);
-  musicMaster.connect(ambience).connect(ambienceGain).connect(audioContext.destination);
+  musicMaster.connect(limiter).connect(audioContext.destination);
+  musicMaster.connect(ambience).connect(ambienceGain).connect(limiter);
   nextMusicCycle = audioContext.currentTime + .08;
   fillMusicQueue();
   musicScheduler = window.setInterval(fillMusicQueue, 2500);
@@ -96,7 +102,7 @@ async function startWeddingMusic() {
   const now = audioContext.currentTime;
   musicMaster.gain.cancelScheduledValues(now);
   musicMaster.gain.setValueAtTime(Math.max(musicMaster.gain.value, .0001), now);
-  musicMaster.gain.exponentialRampToValueAtTime(.055, now + 1.2);
+  musicMaster.gain.exponentialRampToValueAtTime(.32, now + 1.2);
   setMusicState(true);
 }
 
@@ -198,7 +204,7 @@ ritualNext.addEventListener('click', () => selectRitual(activeRitual + 1));
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const motionTargets = [
-  ...document.querySelectorAll('.countdown-heading, .countdown-grid, .countdown-bar, .ceremony-section .section-heading, .ritual-explorer, .venue-photo, .venue-copy, .details-section .section-heading, .detail-grid article, .closing-card')
+  ...document.querySelectorAll('.countdown-heading, .countdown-grid, .countdown-bar, .trivandrum-film__copy, .ceremony-section .section-heading, .ritual-explorer, .venue-photo, .venue-copy, .details-section .section-heading, .detail-grid article, .closing-card')
 ];
 
 motionTargets.forEach((target, index) => {
